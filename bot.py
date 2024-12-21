@@ -1,51 +1,48 @@
 # Stat Bot Code
+from datetime import datetime, date, time
 import os
+import pytz
 
 import discord
+from discord import app_commands
+from discord.ext import commands
 from dotenv import load_dotenv
+
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
-GUILD = os.getenv('DISCORD_GUILD')
 
 intents = discord.Intents.default()
+intents.message_content = True
 intents.typing = False
-intents.presences = False
 
-client = discord.Client(intents=intents)
+bot = commands.Bot(intents=intents, command_prefix='/')
 
 
-# Startup
-@client.event
+@bot.event
 async def on_ready():
-    for guild in client.guilds:
-        if guild.name == GUILD:
-            break
-
-    print(
-        f'{client.user} is connected to the following guild:\n'
-        f'{guild.name}(id: {guild.id})'
-    )
-
-    members = '\n - '.join([member.name for member in guild.members])
-    print(f'Guild Members:\n - {members}')
+    """Runs when bot.run is run"""
+    print(f'{bot.user.name} has connected to Discord!')
 
 
-# Error Handling
-@client.event
-async def on_error(event, *args, **kwargs):
+@bot.event
+async def on_command_error(ctx, error):
     with open('err.log', 'a') as f:
-        if event == 'on_message':
-            f.write(f'Unhandled message: {args[0]}\n')
-        else:
-            raise
+        f.write(f'Unhandled error: {error} | Caused by: {ctx.message}\n')
 
 
-# Message Responses
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
+@bot.command(name='messagecount', description='Counts how many messages were sent in the current channel today')
+async def message_count(ctx):
+    #Getting our starting point to search the channel history
+    timezone = pytz.timezone('EST')
+    today = date.today()
+    midnight = datetime.combine(today, time())
+    start_of_day = timezone.localize(midnight)
+    #Getting our history and flattening it into a list
+    today_history = ctx.channel.history(after=start_of_day)
+    messages = [message async for message in today_history]
+    #Letting our user know how many messages have been sent today
+    await ctx.send(f"A total of {len(messages)} messages have been sent today")
 
 
-client.run(TOKEN)
+bot.run(TOKEN)
