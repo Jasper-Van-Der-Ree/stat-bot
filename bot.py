@@ -14,6 +14,8 @@ intents.presences = False
 
 client = discord.Client(intents=intents)
 
+
+# Startup
 @client.event
 async def on_ready():
     for guild in client.guilds:
@@ -27,5 +29,23 @@ async def on_ready():
 
     members = '\n - '.join([member.name for member in guild.members])
     print(f'Guild Members:\n - {members}')
+
+
+# Error Handling
+@client.event
+async def on_error(event, *args, **kwargs):
+    with open('err.log', 'a') as f:
+        if event == 'on_message':
+            f.write(f'Unhandled message: {args[0]}\n')
+        else:
+            raise
+
+
+# Message Responses
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+
 
 client.run(TOKEN)
