@@ -1,5 +1,6 @@
 # Stat Bot Code
 import asyncio
+from datetime import datetime, timedelta, time
 import os
 from typing import Literal
 
@@ -8,7 +9,7 @@ from discord import app_commands, Interaction
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from utils import get_today_start, get_week_start
+from utils import get_channel_history, get_today, get_this_week, get_this_month
 
 
 load_dotenv()
@@ -29,7 +30,7 @@ async def setup_hook():
 @bot.event
 async def on_ready():
     """Runs when the bot starts up"""
-    activity = discord.Activity(type=discord.ActivityType.watching, name="Chat")
+    activity = discord.Activity(type=discord.ActivityType.watching, name="chat")
     await bot.change_presence(activity=activity)
     print(f'{bot.user.name} has connected to Discord!')
 
@@ -46,23 +47,48 @@ async def on_command_error(ctx, error):
         description = 'Counts how many messages were sent in a given period',
         guild = discord.Object(id=GUILD_ID)
 )
-async def today_message_count(interaction: Interaction, period: Literal["Today", "This Week"]):
+async def message_count(interaction: Interaction, period: Literal["today", "this week", "this month"], member: discord.Member = None):
+    await interaction.response.defer()
     #Getting our period start
-    if period == 'Today':
-        start = get_today_start()
-    elif period == 'This Week':
-        start = get_week_start()
+    if period == 'today':
+        start, end = get_today()
+    elif period == 'this week':
+        start, end = get_this_week()
+    elif period == 'this month':
+        start, end = get_this_month()
     else:
-        await interaction.response.send_message("Please provide a valid period", ephemeral=True)
+        await interaction.followup.send("Please provide a valid period", ephemeral=True)
         raise discord.InvalidArgument
+
     #Getting our message history
-    history = interaction.channel.history(after=start)
-    messages = [message async for message in history]
-    #Broadcasting how many messages have been sent
-    await interaction.response.send_message(f"{len(messages)} messages have been sent since the start of {start.strftime('%a %d %b %Y')}")
+    timespan = end - start
+    total_length = 0
+    for i in range(timespan.days):
+        day_start = start + timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        day_history = get_channel_history(interaction=interaction, after=day_start, before=day_end)
+        if member:
+            total_length += len([message async for message in day_history if message.author.id == member.id])
+        else:
+            total_length += len([message async for message in day_history])
+        del day_history
+
+    end_midnight = datetime.combine(end, time())
+    end_day_history = get_channel_history(interaction=interaction, after=end_midnight, before=end)
+
+    #User specific vs general message count
+    if member:
+        total_length += len([message async for message in end_day_history if message.author.id == member.id])
+        #Broadcasting how many messages have been sent
+        name = member.nick if member.nick else member.global_name
+        await interaction.followup.send(f"{total_length} messages have been sent here {period} by {name}")
+    else:
+        total_length += len([message async for message in end_day_history])
+        #Broadcasting how many messages have been sent
+        await interaction.followup.send(f"{total_length} messages have been sent here {period}")
 
 
-async def main ():
+async def main():
     await bot.start(TOKEN)
 
 asyncio.run(main())

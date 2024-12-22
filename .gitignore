@@ -1,3 +1,4 @@
 .env
 .vscode
 err.log
+__pycache__
