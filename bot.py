@@ -1,6 +1,6 @@
-# Stat Bot Code
+"""Stat Bot Code"""
+
 import asyncio
-from datetime import datetime, timedelta, time
 import os
 from typing import Literal
 
@@ -9,8 +9,8 @@ from discord import app_commands, Interaction
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from utils import get_channel_history, get_today, get_this_week, get_this_month
-
+from api_utils import chunk_get_history
+from dt_utils import get_today, get_this_week, get_this_month
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -44,7 +44,7 @@ async def on_command_error(ctx, error):
 
 @bot.tree.command(
         name = 'messagecount',
-        description = 'Counts how many messages were sent in a given period',
+        description = 'Counts how many messages were sent in a given period by a given',
         guild = discord.Object(id=GUILD_ID)
 )
 async def message_count(interaction: Interaction, period: Literal["today", "this week", "this month"], member: discord.Member = None):
@@ -60,32 +60,17 @@ async def message_count(interaction: Interaction, period: Literal["today", "this
         await interaction.followup.send("Please provide a valid period", ephemeral=True)
         raise discord.InvalidArgument
 
-    #Getting our message history
-    timespan = end - start
-    total_length = 0
-    for i in range(timespan.days):
-        day_start = start + timedelta(days=i)
-        day_end = day_start + timedelta(days=1)
-        day_history = get_channel_history(interaction=interaction, after=day_start, before=day_end)
+    combined_stream = chunk_get_history(interaction, start, end)
+    async with combined_stream.stream() as history:
         if member:
-            total_length += len([message async for message in day_history if message.author.id == member.id])
+            length = len([message async for message in history if message.author.id == member.id])
+            name = member.nick if member.nick else member.global_name
+            await interaction.followup.send(f"{length} messages have been sent here {period} by {name}")
         else:
-            total_length += len([message async for message in day_history])
-        del day_history
-
-    end_midnight = datetime.combine(end, time())
-    end_day_history = get_channel_history(interaction=interaction, after=end_midnight, before=end)
-
-    #User specific vs general message count
-    if member:
-        total_length += len([message async for message in end_day_history if message.author.id == member.id])
-        #Broadcasting how many messages have been sent
-        name = member.nick if member.nick else member.global_name
-        await interaction.followup.send(f"{total_length} messages have been sent here {period} by {name}")
-    else:
-        total_length += len([message async for message in end_day_history])
-        #Broadcasting how many messages have been sent
-        await interaction.followup.send(f"{total_length} messages have been sent here {period}")
+            length = len([message async for message in history])
+            await interaction.followup.send(f"{length} messages have been sent here {period}")
+    
+    del combined_stream
 
 
 async def main():

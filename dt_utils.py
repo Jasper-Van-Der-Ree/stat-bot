@@ -1,12 +1,7 @@
+"""Datetime Function Storage"""
+
 from datetime import date, datetime, time, timedelta
-from discord import HTTPException
 import pytz
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 
 def get_today() -> tuple[datetime]:
@@ -36,14 +31,3 @@ def get_this_month() -> tuple[datetime]:
     start_of_month_midnight = datetime.combine(start_of_month, time())
     now = datetime.now()
     return timezone.localize(start_of_month_midnight), timezone.localize(now)
-
-
-@retry(
-    reraise=True,
-    retry=retry_if_exception_type(HTTPException),
-    wait=wait_exponential(multiplier=1, min=5, max=10),
-)
-def get_channel_history(interaction, after, before):
-    """Get channel history for some window of time"""
-    return interaction.channel.history(after=after, before=before, limit=None)
-
