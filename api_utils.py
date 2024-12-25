@@ -2,7 +2,8 @@
 
 from aiostream import stream
 from datetime import datetime, timedelta, time
-from discord import HTTPException, Interaction
+
+from discord import HTTPException, TextChannel
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -15,22 +16,22 @@ from tenacity import (
     retry=retry_if_exception_type(HTTPException),
     wait=wait_exponential(multiplier=1, min=5, max=10),
 )
-def get_channel_history(interaction: Interaction, after: datetime, before: datetime):
-    """Get channel history for some window of time
+def get_channel_history(channel: TextChannel, after: datetime, before: datetime):
+    """Gets channel history for some window of time
     Args:
-        interaction: Discord interaction, the slash command instance
+        channel: channel where the slash command was run
         after: after of the period we want messages from
         before: before of the period we want messages from
     Returns:
         An asynchronous iterator with relevant channel history
     """
-    return interaction.channel.history(after=after, before=before, limit=None)
+    return channel.history(after=after, before=before, limit=5000)
 
 
-def chunk_get_history(interaction: Interaction, after: datetime, before: datetime):
-    """Chunks get_history into day-sized chunks that we don't timeout discord API
+def chunk_get_history(channel: TextChannel, after: datetime, before: datetime):
+    """Chunks get_channel_history into day-sized chunks so that we don't timeout discord API
     Args:
-        interaction: Discord interaction, the slash command instance
+        channel: channel where the slash command was run
         after: after of the period we want messages from
         before: before of the period we want messages from
     Returns:
@@ -42,10 +43,10 @@ def chunk_get_history(interaction: Interaction, after: datetime, before: datetim
         after_day = after + timedelta(days=i)
         before_day = after_day + timedelta(days=1)
         grand_history.append(
-            get_channel_history(interaction=interaction, after=after_day, before=before_day)
+            get_channel_history(channel=channel, after=after_day, before=before_day)
         )
     last_midnight = datetime.combine(before, time())
     grand_history.append(
-        get_channel_history(interaction=interaction, after=last_midnight, before=before)
+        get_channel_history(channel=channel, after=last_midnight, before=before)
     )
     return stream.merge(*grand_history)
