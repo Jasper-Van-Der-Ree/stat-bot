@@ -1,17 +1,20 @@
 """Stat Bot Code"""
 
 from asyncio import run
-from collections import deque
+from datetime import date
+import json
 from os import getenv
 from typing import Literal
 
 import discord
-from discord import Activity, Interaction, Object
+from discord import app_commands, Activity, Interaction, Object, Member
 from discord.ext import commands
 from dotenv import load_dotenv
+from toolz.dicttoolz import get_in, merge
 
-from api_utils import chunk_get_history
-from dt_utils import get_today, get_this_week, get_this_month
+from utils.api_utils import chunk_get_history
+from utils.cache_utils import get_cache, save_cache, update_cache
+from utils.dt_utils import get_today, get_this_week, get_this_month, todays_date
 
 load_dotenv()
 TOKEN = getenv('DISCORD_TOKEN')
@@ -24,12 +27,12 @@ bot = commands.Bot(intents=intents, command_prefix='/')
 
 
 @bot.event
-async def setup_hook():
+async def setup_hook() -> None:
     await bot.tree.sync(guild=Object(GUILD_ID))
 
 
 @bot.event
-async def on_ready():
+async def on_ready() -> None:
     """Runs when the bot starts up"""
     activity = Activity(type=discord.ActivityType.watching, name="chat")
     await bot.change_presence(activity=activity)
@@ -37,10 +40,32 @@ async def on_ready():
 
 
 @bot.event
-async def on_command_error(ctx, error):
+async def on_app_command_error(interaction: Interaction, error: app_commands.AppCommandError) -> None:
     """Runs when a command triggers an exception"""
-    with open('err.log', 'a') as f:
-        f.write(f'Unhandled error: {error} | Caused by: {ctx.message}\n')
+    if interaction.message:
+        async with open('err.log', 'a') as f:
+            f.write(f'Unhandled error: {error} | Caused by: {interaction.message.content}\n')
+    else:
+        async with open('err.log', 'a') as f:
+            f.write(f'Unhandled error: {error} | Command: {interaction.command} | User: {interaction.user} | Channel: {interaction.channel}\n')
+
+    if isinstance(error, app_commands.errors.CommandOnCooldown):
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                f'command "{interaction.command.name}" is on cooldown. you can use it in {round(error.retry_after, 2)} seconds.',
+                ephemeral=True  
+            )
+        else:
+            await interaction.followup.send(
+                f'command "{interaction.command.name}" is on cooldown, you can use it in {round(error.retry_after, 2)} seconds.',
+                ephemeral=True
+            )
+    else: 
+
+        if not interaction.response.is_done():
+            await interaction.response.send_message("an unexpected error occurred. please try again later.", ephemeral=True)
+        else:
+            await interaction.followup.send("an unexpected error occurred. please try again later.", ephemeral=True)
 
 
 @bot.tree.command(
@@ -48,9 +73,13 @@ async def on_command_error(ctx, error):
         description = 'Counts how many messages were sent in a given period by a given',
         guild = Object(id=GUILD_ID)
 )
-async def message_count(interaction: Interaction, period: Literal["today", "this week", "this month"], member: discord.Member = None):
+async def message_count(
+    interaction: Interaction,
+    period: Literal["today", "this week", "this month"],
+    member: Member = None,
+) -> None:
     await interaction.response.defer()
-    #Getting our period start
+    # Handling period options
     if period == 'today':
         start, end = get_today()
     elif period == 'this week':
@@ -61,18 +90,40 @@ async def message_count(interaction: Interaction, period: Literal["today", "this
         await interaction.followup.send("Please provide a valid period", ephemeral=True)
         raise InvalidArgument
 
-    combined_stream = chunk_get_history(channel=interaction.channel, after=start, before=end)
-    async with combined_stream.stream() as history:
-        if member:
-            member_id = member.id
-            length = len([1 async for message in history if message.author.id == member_id])
-            name = member.nick if member.nick else member.global_name
-            await interaction.followup.send(f"{length} messages have been sent here {period} by {name}")
-        else:
-            length = len([1 async for _ in history])
-            await interaction.followup.send(f"{length} messages have been sent here {period}")
-    
-    del combined_stream
+    # Gets a dictionary containing date:history pairs, where history is an async iterable of messages
+    history = chunk_get_history(channel=interaction.channel, after=start, before=end)
+    cache = get_cache()
+    today = todays_date()
+    channel_id = interaction.channel.id
+    count = 0
+    if member:
+        user_id = member.id
+        for day, messages in history.items():
+            day_count = get_in([str(channel_id), day, str(user_id)], cache)
+            if not day_count: # If we do not have this count cached
+                day_count = len([None async for message in messages if message.author.id == user_id])
+                if day != today: # Do not cache today, message history is not yet complete
+                    update_cache(cache, str(channel_id), day, str(user_id), day_count)
+
+            count += day_count
+
+        name = member.nick if member.nick else member.global_name
+        await interaction.followup.send(f"{count} messages have been sent here by {name} {period}")
+
+    else:
+        user_id = 0
+        for day, messages in history.items():
+            day_count = get_in([str(channel_id), day, str(user_id)], cache)
+            if not day_count: # If we do not have this count cached
+                day_count = len([None async for _ in messages])
+                if day != today: # Do not cache today, message history is not yet complete
+                    update_cache(cache, str(channel_id), day, str(user_id), day_count)
+
+            count += day_count
+
+        await interaction.followup.send(f"{count} messages have been sent here {period}")
+
+    save_cache(cache)
 
 
 async def main():

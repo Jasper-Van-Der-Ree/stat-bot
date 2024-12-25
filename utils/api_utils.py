@@ -1,6 +1,5 @@
 """API Function Storage"""
 
-from aiostream import stream
 from datetime import datetime, timedelta, time
 
 from discord import HTTPException, TextChannel
@@ -28,7 +27,7 @@ def get_channel_history(channel: TextChannel, after: datetime, before: datetime)
     return channel.history(after=after, before=before, limit=5000)
 
 
-def chunk_get_history(channel: TextChannel, after: datetime, before: datetime):
+def chunk_get_history(channel: TextChannel, after: datetime, before: datetime) -> dict:
     """Chunks get_channel_history into day-sized chunks so that we don't timeout discord API
     Args:
         channel: channel where the slash command was run
@@ -38,15 +37,14 @@ def chunk_get_history(channel: TextChannel, after: datetime, before: datetime):
         An asynchronous iterator with the relevant channel history
     """
     timespan = before - after
-    grand_history = []
+    history = {}
     for i in range(timespan.days):
         after_day = after + timedelta(days=i)
         before_day = after_day + timedelta(days=1)
-        grand_history.append(
-            get_channel_history(channel=channel, after=after_day, before=before_day)
-        )
+        date = after_day.strftime('%Y-%m-%d')
+        history[date] = get_channel_history(channel=channel, after=after_day, before=before_day)
+
     last_midnight = datetime.combine(before, time())
-    grand_history.append(
-        get_channel_history(channel=channel, after=last_midnight, before=before)
-    )
-    return stream.merge(*grand_history)
+    last_date = before.strftime('%Y-%m-%d')
+    history[last_date] = get_channel_history(channel=channel, after=last_midnight, before=before)
+    return history

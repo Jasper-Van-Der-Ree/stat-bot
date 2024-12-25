@@ -4,6 +4,12 @@ from datetime import date, datetime, time, timedelta
 import pytz
 
 
+def todays_date() -> str:
+    timezone = pytz.timezone('EST')
+    now = datetime.now()
+    return timezone.localize(now).strftime('%Y-%m-%d')
+
+
 def get_today() -> tuple[datetime]:
     """Gets the start of today and current time"""
     timezone = pytz.timezone('EST')
