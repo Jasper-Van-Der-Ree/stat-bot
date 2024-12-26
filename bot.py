@@ -1,8 +1,6 @@
 """Stat Bot Code"""
 
 from asyncio import run
-from datetime import date
-import json
 from os import getenv
 from typing import Literal
 
@@ -10,11 +8,11 @@ import discord
 from discord import app_commands, Activity, Interaction, Object, Member
 from discord.ext import commands
 from dotenv import load_dotenv
-from toolz.dicttoolz import get_in, merge
 
 from utils.api_utils import chunk_get_history
-from utils.cache_utils import get_cache, save_cache, update_cache
+from utils.cache_utils import get_cache, save_cache
 from utils.dt_utils import get_today, get_this_week, get_this_month, todays_date
+from utils.gen_utils import count_user_channel_messages, count_channel_messages
 
 load_dotenv()
 TOKEN = getenv('DISCORD_TOKEN')
@@ -92,35 +90,20 @@ async def message_count(
 
     # Gets a dictionary containing date:history pairs, where history is an async iterable of messages
     history = chunk_get_history(channel=interaction.channel, after=start, before=end)
+    # Gets our count cache
     cache = get_cache()
-    today = todays_date()
-    channel_id = interaction.channel.id
-    count = 0
-    if member:
-        user_id = member.id
-        for day, messages in history.items():
-            day_count = get_in([str(channel_id), day, str(user_id)], cache)
-            if not day_count: # If we do not have this count cached
-                day_count = len([None async for message in messages if message.author.id == user_id])
-                if day != today: # Do not cache today, message history is not yet complete
-                    update_cache(cache, str(channel_id), day, str(user_id), day_count)
-
-            count += day_count
-
+    # Gets today's date in EST
+    today = todays_date('EST')
+    # Gets our channel ID
+    channel_id = str(interaction.channel.id)
+    if member: # Are we looking for messages from a particular user?
+        user_id = str(member.id)
+        count = await count_user_channel_messages(history, cache, today, channel_id, user_id)
         name = member.nick if member.nick else member.global_name
         await interaction.followup.send(f"{count} messages have been sent here by {name} {period}")
 
-    else:
-        user_id = 0
-        for day, messages in history.items():
-            day_count = get_in([str(channel_id), day, str(user_id)], cache)
-            if not day_count: # If we do not have this count cached
-                day_count = len([None async for _ in messages])
-                if day != today: # Do not cache today, message history is not yet complete
-                    update_cache(cache, str(channel_id), day, str(user_id), day_count)
-
-            count += day_count
-
+    else: # Count messages from all users instead
+        count = await count_channel_messages(history, cache, today, channel_id)
         await interaction.followup.send(f"{count} messages have been sent here {period}")
 
     save_cache(cache)

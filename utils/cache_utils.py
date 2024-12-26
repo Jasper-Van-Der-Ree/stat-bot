@@ -4,6 +4,7 @@ import json
 
 
 def get_cache() -> dict:
+    """Reads and returns the cache"""
     with open('resources/cache.json', 'r') as f:
         cache = json.load(f)
         return cache
@@ -11,12 +12,14 @@ def get_cache() -> dict:
 
 def update_cache(cache: dict, channel_id: str, day: str, user_id: str, day_count: int) -> dict:
     """Takes the loaded cache and injects the given channel, day, user combination
+
     Args:
         cache: the loaded cache
         channel_id: ID of the channel messages were sent in
         day: the day messages were sent on
         user_id: the user that sent the messages
         day_count: the amount of messages sent
+
     Returns:
         cache with the injected value
     """
@@ -32,5 +35,6 @@ def update_cache(cache: dict, channel_id: str, day: str, user_id: str, day_count
 
 
 def save_cache(cache: dict) -> None:
+    """Takes the cache and saves it locally"""
     with open('resources/cache.json', 'w') as f:
         json.dump(cache, f, indent=4)

@@ -17,10 +17,12 @@ from tenacity import (
 )
 def get_channel_history(channel: TextChannel, after: datetime, before: datetime):
     """Gets channel history for some window of time
+
     Args:
         channel: channel where the slash command was run
         after: after of the period we want messages from
         before: before of the period we want messages from
+
     Returns:
         An asynchronous iterator with relevant channel history
     """
@@ -29,10 +31,12 @@ def get_channel_history(channel: TextChannel, after: datetime, before: datetime)
 
 def chunk_get_history(channel: TextChannel, after: datetime, before: datetime) -> dict:
     """Chunks get_channel_history into day-sized chunks so that we don't timeout discord API
+
     Args:
         channel: channel where the slash command was run
         after: after of the period we want messages from
         before: before of the period we want messages from
+        
     Returns:
         An asynchronous iterator with the relevant channel history
     """

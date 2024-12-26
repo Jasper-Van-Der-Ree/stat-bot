@@ -4,10 +4,10 @@ from datetime import date, datetime, time, timedelta
 import pytz
 
 
-def todays_date() -> str:
-    timezone = pytz.timezone('EST')
+def todays_date(timezone: str = 'EST') -> str:
+    tz = pytz.timezone(timezone)
     now = datetime.now()
-    return timezone.localize(now).strftime('%Y-%m-%d')
+    return tz.localize(now).strftime('%Y-%m-%d')
 
 
 def get_today() -> tuple[datetime]:
