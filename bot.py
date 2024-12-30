@@ -1,11 +1,11 @@
 """Stat Bot Code"""
 
 from asyncio import run
-from os import getenv
+from os import getenv, remove
 from typing import Literal
 
 import discord
-from discord import app_commands, Activity, Interaction, Object, Member
+from discord import app_commands, Activity, Interaction, File, Object, Member
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -13,6 +13,7 @@ from utils.api_utils import chunk_get_history
 from utils.cache_utils import get_cache, save_cache
 from utils.dt_utils import get_today, get_this_week, get_this_month, todays_date
 from utils.gen_utils import count_user_channel_messages, count_channel_messages
+from utils.plt_utils import graph_activity
 
 load_dotenv()
 TOKEN = getenv('DISCORD_TOKEN')
@@ -75,6 +76,7 @@ async def message_count(
     interaction: Interaction,
     period: Literal["today", "this week", "this month"],
     member: Member = None,
+    graph: bool = False,
 ) -> None:
     await interaction.response.defer()
     # Handling period options
@@ -94,10 +96,10 @@ async def message_count(
     cache = get_cache()
     # Gets today's date in EST
     today = todays_date('EST')
-    # Gets our channel ID
+    # Gets our channel ID and user ID
     channel_id = str(interaction.channel.id)
+    user_id = str(member.id)
     if member: # Are we looking for messages from a particular user?
-        user_id = str(member.id)
         count = await count_user_channel_messages(history, cache, today, channel_id, user_id)
         name = member.nick if member.nick else member.global_name
         await interaction.followup.send(f"{count} messages have been sent here by {name} {period}")
@@ -107,6 +109,13 @@ async def message_count(
         await interaction.followup.send(f"{count} messages have been sent here {period}")
 
     save_cache(cache)
+
+    if graph: # Are we looking to display a histograph showing messages per day?
+        graph_activity(start, end, cache[channel_id], user_id)
+        filename = 'resources/temp.png'
+        chart = File(filename)
+        await interaction.followup.send(file=chart)
+        remove(filename)
 
 
 async def main():
