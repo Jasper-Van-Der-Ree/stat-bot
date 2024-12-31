@@ -3,9 +3,9 @@
 import json
 
 
-def get_cache() -> dict:
+def get_cache(filename: str) -> dict:
     """Reads and returns the cache"""
-    with open('resources/cache.json', 'r') as f:
+    with open(filename, 'r') as f:
         cache = json.load(f)
         return cache
 

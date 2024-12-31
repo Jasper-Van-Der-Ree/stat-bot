@@ -99,28 +99,28 @@ async def message_count(
     # Gets a dictionary containing date:history pairs, where history is an async iterable of messages
     history = chunk_get_history(channel=interaction.channel, after=start, before=end)
     # Gets our count cache
-    cache = get_cache()
+    cache = get_cache('resources/cache.json')
     # Gets today's date in EST
     today = todays_date('EST')
     # Gets our channel ID and user ID
     channel_id = str(interaction.channel.id)
-    user_id = str(member.id)
     if member: # Are we looking for messages from a particular user?
+        user_id = str(member.id)
         count = await count_user_channel_messages(history, cache, today, channel_id, user_id)
-        name = member.nick if member.nick else member.global_name
-        await interaction.followup.send(f"{count} messages {verb} sent here by {name} {period}")
-
+        user_name = member.nick if member.nick else member.global_name
+        await interaction.followup.send(f"{count} messages {verb} sent by {user_name} {period}")
     else: # Count messages from all users instead
+        user_id = "0"
         count = await count_channel_messages(history, cache, today, channel_id)
-        await interaction.followup.send(f"{count} messages {verb} sent here {period}")
+        user_name = None
+        await interaction.followup.send(f"{count} messages {verb} sent {period}")
 
     save_cache(cache)
-
-    if graph: # Are we looking to display a histograph showing messages per day?
-        graph_activity(start, end, cache[channel_id], user_id)
-        filename = 'resources/temp.png'
-        chart = File(filename)
-        await interaction.followup.send(file=chart)
+    if graph and period != "today": # Are we looking to display a histograph showing messages per day?
+        filename='resources/temp.png'
+        channel_name = interaction.channel.name
+        graph_activity(start, end, cache[channel_id], user_id, filename, channel_name, period, user_name)
+        await interaction.followup.send(file=File(filename))
         remove(filename)
 
 
