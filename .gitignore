@@ -2,4 +2,4 @@
 .vscode
 err.log
 __pycache__
-resources/cache.json
+/resources/cache.json
