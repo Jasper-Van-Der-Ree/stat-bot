@@ -19,6 +19,15 @@ def get_today() -> tuple[datetime]:
     return timezone.localize(today_midnight), timezone.localize(now)
 
 
+def get_yesterday() -> tuple[datetime]:
+    """Gets the start of yesterday and current time"""
+    timezone = pytz.timezone('EST')
+    today = date.today()
+    today_midnight = datetime.combine(today, time())
+    yesterday_midnight = today_midnight - timedelta(days=1)
+    return timezone.localize(yesterday_midnight), timezone.localize(today_midnight)
+
+
 def get_this_week() -> tuple[datetime]:
     """Gets the start of the calendar week and current time"""
     timezone = pytz.timezone('EST')

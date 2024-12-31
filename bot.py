@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from utils.api_utils import chunk_get_history
 from utils.cache_utils import get_cache, save_cache
-from utils.dt_utils import get_today, get_this_week, get_this_month, todays_date
+from utils.dt_utils import get_today, get_yesterday, get_this_week, get_this_month, todays_date
 from utils.gen_utils import count_user_channel_messages, count_channel_messages
 
 load_dotenv()
@@ -73,17 +73,23 @@ async def on_app_command_error(interaction: Interaction, error: app_commands.App
 )
 async def message_count(
     interaction: Interaction,
-    period: Literal["today", "this week", "this month"],
+    period: Literal["today", "yesterday", "this week", "this month"],
     member: Member = None,
 ) -> None:
     await interaction.response.defer()
     # Handling period options
     if period == 'today':
         start, end = get_today()
+        verb = "have been"
+    elif period == 'yesterday':
+        start, end = get_yesterday()
+        verb = "were"
     elif period == 'this week':
         start, end = get_this_week()
+        verb = "have been"
     elif period == 'this month':
         start, end = get_this_month()
+        verb = "have been"
     else:
         await interaction.followup.send("Please provide a valid period", ephemeral=True)
         raise InvalidArgument
@@ -100,11 +106,11 @@ async def message_count(
         user_id = str(member.id)
         count = await count_user_channel_messages(history, cache, today, channel_id, user_id)
         name = member.nick if member.nick else member.global_name
-        await interaction.followup.send(f"{count} messages have been sent here by {name} {period}")
+        await interaction.followup.send(f"{count} messages {verb} sent here by {name} {period}")
 
     else: # Count messages from all users instead
         count = await count_channel_messages(history, cache, today, channel_id)
-        await interaction.followup.send(f"{count} messages have been sent here {period}")
+        await interaction.followup.send(f"{count} messages {verb} sent here {period}")
 
     save_cache(cache)
 
